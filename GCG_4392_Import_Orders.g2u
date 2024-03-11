@@ -1,0 +1,1137 @@
+Program.Sub.ScreenSU.Start
+Gui.Form..Create
+Gui.Form..Size(21345,9270)
+Gui.Form..MinX(0)
+Gui.Form..MinY(0)
+Gui.Form..Position(0,0)
+Gui.Form..BackColor(-2147483633)
+Gui.Form..MousePointer(0)
+Gui.Form..Event(UnLoad,Form_UnLoad)
+Gui.Form..Caption("Import Order")
+Gui.Form.GsGrid.Create(GsGridControl)
+Gui.Form.GsGrid.Size(21300,7620)
+Gui.Form.GsGrid.Position(-15,1290)
+Gui.Form.GsGrid.Event(CellValueChanged,GsGrid_CellValueChanged)
+Gui.Form.picGSSLogo.Create(PictureBox)
+Gui.Form.picGSSLogo.Size(5655,1155)
+Gui.Form.picGSSLogo.Position(7845,105)
+Gui.Form.cmdRefresh.Create(Button)
+Gui.Form.cmdRefresh.Size(855,375)
+Gui.Form.cmdRefresh.Position(18945,255)
+Gui.Form.cmdRefresh.Event(Click,cmdRefresh_Click)
+Gui.Form.cmdRefresh.Caption("REFRESH")
+Gui.Form.cmdExport.Create(Button)
+Gui.Form.cmdExport.Size(855,375)
+Gui.Form.cmdExport.Position(19905,255)
+Gui.Form.cmdExport.Caption("Export")
+Gui.Form.cmdExport.Event(Click,cmdExport_Click)
+Gui.Form.optView.Create(Option)
+Gui.Form.optView.Size(750,255)
+Gui.Form.optView.Position(19365,675)
+Gui.Form.optView.Caption("View")
+Gui.Form.optView.ControlGroup(1)
+Gui.Form.optView.Event(Click,cmdRefresh_Click)
+Gui.Form.optEdit.Create(Option)
+Gui.Form.optEdit.Size(645,255)
+Gui.Form.optEdit.Position(20130,675)
+Gui.Form.optEdit.Caption("Edit")
+Gui.Form.optEdit.ControlGroup(1)
+Gui.Form.optEdit.Event(Click,cmdRefresh_Click)
+Gui.Form.optReceive.Create(Option)
+Gui.Form.optReceive.Size(1005,255)
+Gui.Form.optReceive.Position(19830,900)
+Gui.Form.optReceive.Caption("Receive")
+Gui.Form.optReceive.ControlGroup(1)
+Gui.Form.optReceive.Event(Click,cmdRefresh_Click)
+Gui.Form.optReceive.Enabled(False)
+Gui.Form.optReceive.Visible(False)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+V.Global.bInGroupEdit.Declare(Boolean, False)
+V.Global.iRate.Declare(Long)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local.bInGroupView.Declare(Boolean, False)
+V.Local.sIcon.Declare
+V.Local.sGssLogo.Declare
+
+F.ODBC.connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+'check user group only View and Edit allowed
+Function.Global.Security.IsInGroup(V.Caller.User,"View", V.Local.bInGroupView)
+Function.Global.Security.IsInGroup(V.Caller.User,"Edit", V.Global.bInGroupEdit)
+
+'88888888888888888888888888888888888888888888888888
+'For Testing Purposes
+'V.Global.bInGroupEdit.Set(True)
+'88888888888888888888888888888888888888888888888888
+
+Function.Intrinsic.Control.If(V.Local.bInGroupView, =, True, "OR", V.Global.bInGroupEdit, =, True)
+	GUI.Form.Rate.Text(30)
+	F.Intrinsic.String.Build("{0}\GAB\GAS\gss2.ico",V.Caller.PluginsDir,v.Local.sIcon)
+	F.Intrinsic.String.Build("{0}\GAB\GAS\GAB_GSS_Logo_Green_Dash.png",V.Caller.PluginsDir,V.Local.sGssLogo)
+	GUI.Form..Icon(V.Local.sIcon)
+	GUI.Form.picGSSLogo.Picture(V.Local.sGssLogo)
+	GUI.Form.picGSSLogo.Anchor(9)
+	F.Intrinsic.Control.If(V.Global.bInGroupEdit, =, True)
+		Gui.Form.optEdit.Enabled(True)
+		Gui.Form.optReceive.Enabled(True)
+	F.Intrinsic.Control.Else
+		Gui.Form.optEdit.Enabled(False)
+		Gui.Form.optReceive.Enabled(False)
+	F.Intrinsic.Control.EndIf
+	
+	Gui.Form.optView.Enabled(True)
+	Gui.Form.optView.Value(1)	
+	
+	Function.Intrinsic.Control.CallSub(search_database)
+	Function.Intrinsic.Control.CallSub(create_table)	
+	GUI.Form..Show
+	V.Global.iRate.Set(30000)
+'	Gui.Form.timer.Interval(V.Global.iRate)
+'	Gui.Form.timer.Enabled(true)
+Function.Intrinsic.Control.Else
+	F.Intrinsic.UI.Msgbox("Not Part of User Group View or Edit")
+	F.ODBC.Connection!con.Close
+	Function.Intrinsic.Control.End
+
+Function.Intrinsic.Control.EndIf
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4392_Import_Orders.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.Form_UnLoad.Start
+F.Intrinsic.Control.SetErrorHandler("Form_UnLoad_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+Gui.Form..Visible(False)
+
+'F.Intrinsic.Control.Try
+'F.Data.DataTable.RemoveColumn("NET", "Original_Cust_D")
+F.Data.DataTable.SaveToDB("NET", "con", "GCG_4392_ImportOrder", "PO_Num*!*PO_Line",256)
+'F.Intrinsic.Control.Catch
+'F.Intrinsic.Control.EndTry
+
+F.ODBC.Connection!con.Close
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Form_UnLoad_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4392_Import_Orders.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.End
+
+Function.Intrinsic.Control.EndIf
+Program.Sub.Form_UnLoad.End
+
+Program.Sub.Create_Table.Start
+F.Intrinsic.Control.SetErrorHandler("Create_Table_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.Data.DataTable.CreateFromSQL("NET", "con", "Select * From GCG_4392_ImportOrder", True)
+
+'F.Data.DataTable.AddExpressionColumn("NET", "Original_Cust_D", "Date", "IIF([Original_Cust_Date] = '01/01/1900', NULL, [Original_Cust_Date])")
+'F.Data.DataView.Create("NET", "NETVIEW", 22, "", "PO_NUM ASC, PO_LINE ASC")
+
+Gui.Form.GsGrid.AddGridviewFromDataTable("Grid", "NET")
+
+'hide PO Line
+'Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Line","Visible",False)
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_Date","Visible",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Revised_Available", "Visible", False)
+
+'Order Columns
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Num","VisibleIndex","0")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Line", "VisibleIndex","1")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Supplier_Name","VisibleIndex","2")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Item_No","VisibleIndex","3")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Item_Description","VisibleIndex","4")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Buyer","VisibleIndex","5")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Date","VisibleIndex","6")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ack_Date","VisibleIndex","7")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Supplier_No","VisibleIndex","8")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Customer","VisibleIndex","9")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Order_Quantity","VisibleIndex","10")
+'Issue Purchase Order to Supplier - Item, Item Description, Qty, Price (from RFQ), requested production date, QC info
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Price","VisibleIndex","11")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Currency","VisibleIndex","12")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Sales_Person","VisibleIndex","13")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Comment","VisibleIndex","14")
+Gui.Form.GsGrid.SetColumnProperty("Grid","User_5","VisibleIndex","15")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_By","VisibleIndex","16")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Needed","VisibleIndex","17")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Sent","VisibleIndex","18")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Approv","VisibleIndex","19")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Prod_Date","VisibleIndex","20")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Confirmed_Prod_Date","VisibleIndex","21")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Prod_Date","VisibleIndex","22")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Prod_Date","VisibleIndex","23")
+Gui.Form.GsGrid.SetColumnProperty("Grid","QC_InspectLevel","VisibleIndex","24")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_QC_Date","VisibleIndex","25")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_QC_Date","VisibleIndex","26")
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Available","VisibleIndex","28")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_Type","VisibleIndex","27")
+Gui.Form.GsGrid.SetColumnProperty("Grid","No_of_Ctns","VisibleIndex","28")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","VisibleIndex","29")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Ship_Date","VisibleIndex","30")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Vessel_Name","VisibleIndex","31")
+Gui.Form.GsGrid.SetColumnProperty("Grid","ETA_at_Port","VisibleIndex","32")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Entry_Port","VisibleIndex","33")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","VisibleIndex","34")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Recv_Date","VisibleIndex","35")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Recv_Date","VisibleIndex","36")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Inspect_Dat","VisibleIndex","37")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Inspect_Date","VisibleIndex","38")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Avail_Date","VisibleIndex","39")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_Date","VisibleIndex","40")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Avail_Date","VisibleIndex","41")
+
+'locked fields
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Num","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Num","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Line","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Line","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Date","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Date","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Supplier_No","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Supplier_No","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Supplier_Name","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Supplier_Name","AllowEdit",false)
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Customer","ReadOnly",true)
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Customer","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Item_No","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Item_No","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Item_Description","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Item_Description","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Order_Quantity","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Order_Quantity","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Price","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Price","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Currency","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Currency","AllowEdit",false)
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Sales_Person","ReadOnly",true)
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Sales_Person","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_By","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_By","AllowEdit",false)
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","ReadOnly",true)
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Available","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Available","AllowEdit",false)
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_D","ReadOnly",true)
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_D","AllowEdit",false)
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","ReadOnly",true)
+'Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Recv_Date","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Recv_Date","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Inspect_Dat","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Inspect_Dat","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Avail_Date","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Avail_Date","AllowEdit",false)
+'Added by FEQ 5/11/2017
+Gui.Form.GsGrid.SetColumnProperty("Grid","Buyer","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","Buyer","AllowEdit",false)
+Gui.Form.GsGrid.SetColumnProperty("Grid","User_5","ReadOnly",true)
+Gui.Form.GsGrid.SetColumnProperty("Grid","User_5","AllowEdit",false)
+
+'allow to edit dateTime
+'Function.Intrinsic.Control.If(V.Global.bInGroupEdit, =, True)
+F.Intrinsic.Control.If(V.Screen.Form!optView.Value, =, False)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Ack_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Ack_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Ack_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Sent","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Sent","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Sent","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Approv","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Approv","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Approv","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Prod_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Prod_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Prod_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Confirmed_Prod_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Confirmed_Prod_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Confirmed_Prod_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Prod_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Prod_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Prod_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_QC_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_QC_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_QC_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_QC_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_QC_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_QC_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Prod_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Prod_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Prod_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Ship_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Ship_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Ship_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","ETA_at_Port","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","ETA_at_Port","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","ETA_at_Port","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Recv_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Recv_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Recv_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Inspect_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Inspect_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Inspect_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Avail_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Avail_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Avail_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_Date","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","DisplayFormatType","b")
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","AllowEdit",true)
+	
+	'allow other edit
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Needed","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Needed","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Comment","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Comment","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_Type","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_Type","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Vessel_Name","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Vessel_Name","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Entry_Port","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Entry_Port","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","No_of_Ctns","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","No_of_Ctns","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","QC_InspectLevel","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","QC_InspectLevel","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Customer","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Customer","AllowEdit",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Sales_Person","ReadOnly",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Sales_Person","AllowEdit",true)
+		
+	Gui.Form.GsGrid.ColumnEdit("Grid", "Pre_Prod_Needed", "Dropdownlist", "Y*!*N")
+
+Function.Intrinsic.Control.Else
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Ack_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Ack_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Sent","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Sent","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Approv","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Approv","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Prod_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Prod_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Confirmed_Prod_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Confirmed_Prod_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Prod_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Prod_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_QC_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_QC_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_QC_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_QC_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Prod_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Prod_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Ship_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Ship_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","ETA_at_Port","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","ETA_at_Port","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Recv_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Recv_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Inspect_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Inspect_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Avail_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Avail_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_Date","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","AllowEdit",false)
+	
+	'lock other edits
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Needed","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Needed","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Comment","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Comment","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_Type","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_Type","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","No_of_Ctns","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","No_of_Ctns","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","QC_InspectLevel","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","QC_InspectLevel","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Vessel_Name","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Vessel_Name","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Entry_Port","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Entry_Port","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Customer","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Customer","AllowEdit",false)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Sales_Person","ReadOnly",true)
+	Gui.Form.GsGrid.SetColumnProperty("Grid","Sales_Person","AllowEdit",false)
+	
+Function.Intrinsic.Control.EndIf
+
+Function.Intrinsic.Control.CallSub(set_color)
+
+'DisplayCustomDatetime
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ack_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Sent","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Approv","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Prod_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Confirmed_Prod_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Prod_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_QC_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_QC_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Prod_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Available","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Ship_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","ETA_at_Port","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Entry_Port","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Recv_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Recv_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Inspect_Dat","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Inspect_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Avail_Date","DisplayCustomDatetime","d")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Avail_Date","DisplayCustomDatetime","d")
+
+'set min width
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Num","MinWidth","50")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ack_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Supplier_No","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Supplier_Name","MinWidth","200")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Customer","MinWidth","200")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Item_No","MinWidth","150")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Item_Description","MinWidth","200")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Order_Quantity","MinWidth","100")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Price","MinWidth","100")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Currency","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Sales_Person","MinWidth","150")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Comment","MinWidth","200")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_By","MinWidth","75")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Needed","MinWidth","80")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Sent","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Approv","MinWidth","80")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Prod_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Confirmed_Prod_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Prod_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_QC_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_QC_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Prod_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Available","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_Type","MinWidth","110")
+Gui.Form.GsGrid.SetColumnProperty("Grid","No_of_Ctns","MinWidth","110")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Ship_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Vessel_Name","MinWidth","110")
+Gui.Form.GsGrid.SetColumnProperty("Grid","ETA_at_Port","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Entry_Port","MinWidth","110")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Recv_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Recv_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Inspect_Dat","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Inspect_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Avail_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Avail_Date","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Line","MinWidth","50")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Buyer","MinWidth","70")
+Gui.Form.GsGrid.SetColumnProperty("Grid","User_5","MinWidth","200")
+Gui.Form.GsGrid.SetColumnProperty("Grid","QC_InspectLevel","MinWidth","100")
+
+'name columns
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Num","Caption","PO Num")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Date","Caption","PO Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ack_Date","Caption","Confirm Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Supplier_No","Caption","Supplier #")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Supplier_Name","Caption","Supplier Name")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Customer","Caption","Interpak Customer")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Item_No","Caption","Interpak Item No")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Item_Description","Caption","Item Description")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Order_Quantity","Caption","Order Quantity")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Price","Caption","PO Price")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Currency","Caption","Currency")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Sales_Person","Caption","Sales Person")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Comment","Caption","PO Notes")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_By","Caption","Ship Via")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Needed","Caption","Pre-Prod Needed?")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Sent","Caption","Pre-Prod Date Sent")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Approv","Caption","Pre-Prod Date Approved")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Prod_Date","Caption","Request Prod Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Confirmed_Prod_Date","Caption","Confirmed Prod Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Prod_Date","Caption","Revised Prod Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_QC_Date","Caption","Request QC Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_QC_Date","Caption","Actual QC Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Prod_Date","Caption","Actual Prod Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","Caption","Original Recvd Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Available","Caption","Revised Available")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_Date","Caption","Original Cust Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Ship_Type","Caption","Ship Type")
+Gui.Form.GsGrid.SetColumnProperty("Grid","No_of_Ctns","Caption","# of Ctns")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","Caption","Request Ship Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Ship_Date","Caption","Actual Ship Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Vessel_Name","Caption","Vessel Name")
+Gui.Form.GsGrid.SetColumnProperty("Grid","ETA_at_Port","Caption","ETA at Port")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Entry_Port","Caption","Entry Port")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Recv_Date","Caption","Expected Recv Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Recv_Date","Caption","Actual Recv Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Inspect_Dat","Caption","Expected Inspect Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Inspect_Date","Caption","Actual Inspect Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Avail_Date","Caption","Expected Avail Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Avail_Date","Caption","Actual Avail Date")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Line","Caption","PO Line")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Buyer","Caption","Buyer")
+Gui.Form.GsGrid.SetColumnProperty("Grid","User_5","Caption","User 5")
+Gui.Form.GsGrid.SetColumnProperty("Grid","QC_InspectLevel","Caption","QC Inspection Level")
+
+'add word wrap and column height for header
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Needed","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Sent","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Pre_Prod_Date_Approv","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Prod_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Confirmed_Prod_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Prod_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_QC_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_QC_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Prod_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Available","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Revised_Available","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Original_Cust_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Request_Ship_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Ship_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Recv_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Recv_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Inspect_Dat","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Inspect_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Expected_Avail_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Actual_Avail_Date","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Line","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Buyer","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","User_5","HeaderWordWrap","Wrap")
+Gui.Form.GsGrid.SetColumnProperty("Grid","QC_InspectLevel","HeaderWordWrap","Wrap")
+
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Num","Fixed","Left")
+Gui.Form.GsGrid.SetColumnProperty("Grid","PO_Line", "Fixed","Left")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Supplier_Name","Fixed","Left")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Interpak_Item_No","Fixed","Left")
+Gui.Form.GsGrid.SetColumnProperty("Grid","Item_Description","Fixed","Left")
+
+Gui.Form.GsGrid.SetGridViewProperty("Grid", "showgrouppanel", True)
+Gui.Form.GsGrid.SetGridViewProperty("Grid", "Enableappearanceoddrow", True)
+Gui.Form.GsGrid.SetGridViewProperty("Grid", "ColumnPanelRowHeight", "35")
+gui.Form.GsGrid.Anchor(15)
+Gui.Form.cmdExport.Anchor(9)
+Gui.Form.cmdRefresh.Anchor(9)
+Gui.Form.optEdit.Anchor(9)
+Gui.Form.optView.Anchor(9)
+Gui.Form.optReceive.Anchor(9)
+GUI.Form.GsGrid.MainView("Grid")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Create_Table_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4392_Import_Orders.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Create_Table.End
+
+Program.Sub.Search_DataBase.Start
+F.Intrinsic.Control.SetErrorHandler("Search_DataBase_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local..BulkDeclareString(ssql, sMap, sPairs, sKey, sXAF, sRet, sRemove, sFilter)
+V.Local..BulkDeclareLong(iC)
+
+'first delete from custom table the closed PO's
+V.Local.ssql.Set("Select GCG_4392_ImportOrder.PO_Num, GCG_4392_ImportOrder.PO_Line From GCG_4392_ImportOrder Right Join V_PO_LINES On GCG_4392_ImportOrder.PO_Num = V_PO_LINES.Purchase_Order And GCG_4392_ImportOrder.PO_Line = V_PO_LINES.Record_No And V_PO_LINES.Flag_Recv_Close = 'Y'")
+F.Data.DataTable.CreateFromSQL("Deletion", "con", V.Local.ssql, True)
+F.Data.DataView.Create("Deletion", "DelView", 22, "[PO_Num] <> ''", "PO_Num ASC")
+F.Intrinsic.Control.For(V.Local.iC, 0, V.DataView.Deletion!DelView.RowCount--, 1)
+	F.Intrinsic.String.Build("Delete From GCG_4392_ImportOrder Where PO_Num = '{0}' And PO_Line = '{1}'", V.DataView.Deletion!DelView(V.Local.iC).PO_Num!FieldValTrim, V.DataView.Deletion!DelView(V.Local.iC).PO_Line!FieldValTrim, V.Local.ssql)
+	Function.ODBC.Connection!con.Execute(v.Local.ssql)	
+F.Intrinsic.Control.Next(V.Local.iC)
+
+F.Data.DataTable.Close("Deletion")
+'Function.ODBC.Connection!con.ExecuteAndReturn(V.Local.ssql, V.Local.sRet) 
+'F.Intrinsic.String.Split(V.Local.sRet, "#$#", V.Local.sRet)
+'F.Intrinsic.Control.For(V.Local.iC, 0, V.Local.sRet.UBound, 1)
+'	F.Intrinsic.String.Split(V.Local.sRet(V.Local.iC), "*!*", V.Local.sRemove)
+'	F.Intrinsic.String.Build("Delete From GCG_4392_ImportOrder Where PO_Num = '{0}' And PO_Line = '{1}'", V.Local.sRemove(0), V.Local.sRemove(1), V.Local.ssql)
+'	Function.ODBC.Connection!con.Execute(v.Local.ssql)
+'F.Intrinsic.Control.Next(V.Local.iC)
+
+
+'find the ones that already exist in the table
+F.Data.Dictionary.CreateFromSql("dict", "con", "Select PO_Num+'-'+PO_Line as PO, PO_Num From GCG_4392_ImportOrder")
+Function.Data.Dictionary.ReturnAllPairs("dict", V.Local.sPairs)
+F.Intrinsic.String.Split(V.Local.sPairs, "!*!", V.Local.sPairs)
+F.Intrinsic.String.Replace(V.Local.sPairs(0), "*!*", "','", V.Local.sKey)
+F.Data.Dictionary.Close("dict")
+
+
+F.Data.Dictionary.CreateFromSql("dict", "con", "Select Vendor, Currency From VENDOR_CURR Where Currency = 'XAF'")
+'This line was used for testing
+'F.Data.Dictionary.CreateFromSql("dict", "con", "Select Vendor, Currency From VENDOR_CURR Where Currency = 'USD'")
+
+Function.Data.Dictionary.ReturnAllPairs("dict", V.Local.sPairs)
+F.Intrinsic.String.Split(V.Local.sPairs, "!*!", V.Local.sPairs)
+F.Intrinsic.String.Replace(V.Local.sPairs(0), "*!*", "','", V.Local.sXAF)
+F.Data.Dictionary.Close("dict")
+
+F.Intrinsic.String.Build("Select PURCHASE_ORDER+'-'+RECORD_NO as PO, PURCHASE_ORDER, RECORD_NO, VENDOR, PART, DESCRIPTION, USER_5, Rtrim(' ') as Name,RTrim(' ') as Name_Customer,QTY_ORDER, Cast(null as Date) as Date_Item_Prom,RTrim(' ') as Order_Line,Rtrim(' ') as Order_No,Rtrim(' ') as Currency,Cast('0' as Double) as Cost ,Rtrim(' ') as Name_Vendor, Cast(null as DATE) as Date_Order, Rtrim(' ') as Ship_Via, Cast(null as Date) as Request_Prod_Date, Cast(null as Date) as Request_QC_Date, Rtrim(' ') as Buyer From V_PO_LINES Where PO Not In ('{0}') And VENDOR In ('{1}') And Flag_Recv_Close <> 'Y'", V.Local.sKey, V.Local.sXAF,V.Local.ssql)
+F.Data.DataTable.CreateFromSQL("Temp", "con", V.Local.ssql)
+
+'need to add sales order number to table
+F.Data.Dictionary.CreateFromSql("dict", "con", "Select PO+'-'+PO_Line as PO, ORDER_NO From SALES_ORD_COM")
+Function.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "PO", "ORDER_NO")
+F.Data.Dictionary.Close("dict")
+
+'need to add sales order line number to table
+F.Data.Dictionary.CreateFromSql("dict", "con", " Select PO+'-'+PO_Line as PO, Order_Line From SALES_ORD_COM")
+Function.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "PO", "Order_Line")
+F.Data.Dictionary.Close("dict")
+
+'add exprssion column to put order_no and order_line together
+F.Data.DataTable.AddExpressionColumn("Temp", "SO", "String", "[ORDER_NO]+'-'+[Order_Line]")
+
+'Interpak Customer
+F.Data.DataTable.CreateFromSQL("temp2", "con", "Select V_Order_Header.Order_No, V_Order_Header.Customer, V_CUSTOMER_MASTER.Name_Customer From V_Order_Header Left Join V_CUSTOMER_MASTER On V_Order_Header.Customer = V_CUSTOMER_MASTER.Customer ")
+F.Data.Dictionary.CreateFromDataTable("dict", "temp2", "Order_No", "Name_Customer")
+Function.Data.Dictionary.SetDefaultReturn("dict", " ")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "Order_No", "Name_Customer")
+F.Data.Dictionary.Close("dict")
+F.Data.DataTable.Close("temp2")
+
+'Original Cust Date
+F.Data.Dictionary.CreateFromSql("dict", "con", "Select Order_No+'-'+Order_Line as SO, cast(SO_PROM_DATE as Date) as  Date_Item_Prom From V_SALES_ORD_COM")
+Function.Data.Dictionary.SetDefaultReturn("dict", "01/01/1900")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "SO", "Date_Item_Prom")
+F.Data.Dictionary.Close("dict")
+
+'PO Date, PO Creation Date PO header
+F.Data.Dictionary.CreateFromSql("dict", "con", "Select Purchase_Order, Date_Order From V_PO_Header")
+Function.Data.Dictionary.SetDefaultReturn("dict", "01/01/1900")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "Purchase_Order", "Date_Order")
+F.Data.Dictionary.Close("dict")
+
+'Supplier Name
+F.Data.Dictionary.CreateFromSql("dict", "con", "Select Vendor, Name_Vendor From Vendor_Master")
+Function.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "Vendor", "Name_Vendor")
+F.Data.Dictionary.Close("dict")
+
+'PO Price from PO Lines
+F.Data.Dictionary.CreateFromSql("dict", "con", "Select Purchase_Order, Cost From V_PO_Lines")
+Function.Data.Dictionary.SetDefaultReturn("dict", "0.0")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "Purchase_Order", "Cost")
+F.Data.Dictionary.Close("dict")
+
+'Currency from VENDOR_CURR
+F.Data.Dictionary.CreateFromSql("dict", "con", "Select Vendor, Currency From V_VENDOR_CURR")
+Function.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "Vendor", "Currency")
+F.Data.Dictionary.Close("dict")
+
+'Sales Person, through SALES_ORD_COM table for association with sales order
+F.Data.DataTable.CreateFromSQL("temp2", "con", "Select V_Order_Header.Order_No, V_Order_Header.Salesperson, Salespersons.Name From V_Order_Header Left Join Salespersons On V_Order_Header.Salesperson = Salespersons.ID")
+F.Data.Dictionary.CreateFromDataTable("dict", "temp2", "Order_No", "Name")
+Function.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "Order_No", "Name")
+F.Data.Dictionary.Close("dict")
+F.Data.DataTable.Close("temp2")
+
+'Ship By(via), PO Header 
+F.Data.Dictionary.CreateFromSql("dict", "con", "Select Purchase_Order,Ship_Via From V_PO_Header")
+Function.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "Purchase_Order", "Ship_Via")
+F.Data.Dictionary.Close("dict")
+
+'F.Data.DataTable.AddColumn("Temp", "DateAdd", "Long")
+'F.Data.Dictionary.Create("DaysToAdd")
+'F.Data.Dictionary.AddItem("DaysToAdd", "Ocean-East", 42)
+'F.Data.Dictionary.AddItem("DaysToAdd", "Ocean-West", 28)
+'F.Data.Dictionary.AddItem("DaysToAdd", "Ocean East", 42)
+'F.Data.Dictionary.AddItem("DaysToAdd", "Ocean West", 28)
+'F.Data.Dictionary.AddItem("DaysToAdd", "Air", 7)
+'F.Data.Dictionary.AddItem("DaysToAdd", "Land", 6)
+'F.Data.Dictionary.SetDefaultReturn("DaysToAdd", 0)
+'F.Data.DataTable.FillFromDictionary("Temp", "DaysToAdd", "Ship_Via", "DateAdd")
+'F.Data.Dictionary.Close("DaysToAdd")
+'
+'F.Data.DataTable.AddExpressionColumn("Temp", "Expected_Recv_Date", "Date", "Convert([Ship_Via], integer) + [DateAdd]")
+'F.Data.DataTable.AddExpressionColumn("Temp", "Expected_Inspect_Dat", "Date", "[] + [DateAdd]")
+'F.Data.DataTable.AddExpressionColumn("Temp", "Expected_Avail_Date", "Date", "[] + [DateAdd]")
+
+'Request Ship Date
+
+'Request Prod Date is to be populated from the PO_Header.Date_Due
+F.Data.Dictionary.CreateFromSql("dict", "con", "Select Purchase_Order, cast(DATE_DUE as Date) as  Date_Due From V_PO_Header")
+Function.Data.Dictionary.SetDefaultReturn("dict", "01/01/1900")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "Purchase_Order", "Request_Prod_Date")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "Purchase_Order", "Request_QC_Date")
+F.Data.Dictionary.Close("dict")
+
+'Buyer
+F.Data.Dictionary.CreateFromSql("dict", "con", "Select Purchase_Order,Buyer From V_PO_Header")
+Function.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("Temp", "dict", "Purchase_Order", "Buyer")
+F.Data.Dictionary.Close("dict")
+
+V.Local.sMap.Set("PURCHASE_ORDER@!@PO_Num*!*RECORD_NO@!@PO_Line*!*Date_Order@!@PO_DATE*!*Cost@!@PO_Price*!*Name@!@Sales_Person*!*Name_Customer@!@Interpak_Customer*!*Date_Item_Prom@!@Original_Cust_Date*!*Currency@!@Currency*!*VENDOR@!@Supplier_No*!*Name_Vendor@!@Supplier_Name*!*Ship_Via@!@Ship_By*!*PART@!@Interpak_Item_No*!*DESCRIPTION@!@Item_Description*!*QTY_ORDER@!@Order_Quantity*!*Request_Prod_Date@!@Request_Prod_Date*!*Request_QC_Date@!@Request_QC_Date*!*BUYER@!@Buyer*!*USER_5@!@User_5*!*Ship_Via@!@Ship_By")
+'F.Intrinsic.Control.Try
+F.Data.DataTable.SaveToDB("Temp", "con", "GCG_4392_ImportOrder", "PURCHASE_ORDER*!*RECORD_NO", 128, V.Local.sMap)
+'F.Intrinsic.Control.Catch
+'F.Intrinsic.Control.EndTry
+
+F.ODBC.Connection!con.Execute("UPDATE "GCG_4392_ImportOrder" set ORIGINAL_CUST_DATE = null where ORIGINAL_CUST_DATE = '1900-01-01'")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Search_DataBase_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4392_Import_Orders.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Search_DataBase.End
+
+Program.Sub.GsGrid_CellValueChanged.Start
+F.Intrinsic.Control.SetErrorHandler("GsGrid_CellValueChanged_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local..BulkDeclareString(sCol,sRet, sNeed)
+V.Local..BulkDeclareLong(iCol, iRow, iAdd)
+V.Local.dDate.Declare(Date)
+
+Gui.Form.GsGrid.SuspendLayout()
+
+V.Local.sCol.Set(V.Args.Column)
+V.Local.iRow.Set(V.Args.RowIndex)
+
+'F.Data.DataTable.SaveToDB("NET", "con", "GCG_4392_ImportOrder", "PO_Num*!*PO_Line",256)
+
+F.Intrinsic.Control.SelectCase(V.Local.sCol)
+F.Intrinsic.Control.Case("PO_Comment")
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Case("QC_InspectLevel")
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Case("Interpak_Customer")
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Case("Sales_Person")
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Case("Request_Ship_Date")
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Case("Original_Available")
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Case("Original_Cust_Date")
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndSelect
+
+Function.Intrinsic.Control.If(V.Local.sCol, =, "Pre_Prod_Needed")
+
+' if 'N' set Pre_Prod_Date_Sent and Pre_Prod_Date_Approv to 1/1/1900
+	Gui.Form.GsGrid.GetColumnIndexByName("Grid", V.Local.sCol, V.Local.iCol)
+	GUI.Form.GsGrid.GetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.sNeed)
+	Function.Intrinsic.Control.If(V.Local.sNeed, =, "N")
+		'pass no date for pre_Prod dates
+		Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Pre_Prod_Date_Sent", V.Local.iCol)
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iRow, "backcolor", "White")
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iRow, "foreColor", "White")
+		Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Pre_Prod_Date_Approv", V.Local.iCol)
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iRow, "backcolor", "White")
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iRow, "foreColor", "White")
+	Function.Intrinsic.Control.Else
+		Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Pre_Prod_Date_Sent", V.Local.iCol)
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iRow, "backcolor", "White")
+		GUI.Form.GsGrid.GetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+		Function.Intrinsic.Control.CallSub(set_one_color, "ROW", V.Local.iRow,"COL", V.Local.iCol, "DATE", V.Local.dDate)
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iRow, "foreColor", "Black")
+		Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Pre_Prod_Date_Approv", V.Local.iCol)
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iRow, "backcolor", "White")
+		GUI.Form.GsGrid.GetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+		Function.Intrinsic.Control.CallSub(set_one_color, "ROW", V.Local.iRow,"COL", V.Local.iCol, "DATE", V.Local.dDate)
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iRow, "foreColor", "Black")
+	Function.Intrinsic.Control.EndIf
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+Function.Intrinsic.Control.ElseIf(V.Local.sCol, =, "Ship_Type")
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+Function.Intrinsic.Control.ElseIf(V.Local.sCol, =, "No_of_Ctns")
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+Function.Intrinsic.Control.ElseIf(V.Local.sCol, =, "Vessel_Name")
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+Function.Intrinsic.Control.ElseIf(V.Local.sCol, =, "Entry_Port")
+	Gui.Form.GsGrid.ResumeLayout()
+	F.Intrinsic.Control.ExitSub
+Function.Intrinsic.Control.EndIf
+
+
+'check if pre-prod needed for pre-prod-date-sent and pre-prod-date-approved
+Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Pre_Prod_Needed", V.Local.iCol)
+GUI.Form.GsGrid.GetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.sNeed)
+Function.Intrinsic.Control.If(V.Local.sCol, =, "Pre_Prod_Date_Sent")
+	Function.Intrinsic.Control.If(V.Local.sNeed, =, "N")
+	Gui.Form.GsGrid.ResumeLayout()
+	Function.Intrinsic.Control.ExitSub
+	Function.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.ElseIf(V.Local.sCol, =, "Pre_Prod_Date_Approv")
+	Function.Intrinsic.Control.If(V.Local.sNeed, =, "N")
+	Gui.Form.GsGrid.ResumeLayout()
+	Function.Intrinsic.Control.ExitSub
+	Function.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.EndIf
+
+'for dates only; these are not manually set, so no color coding
+Gui.Form.GsGrid.GetColumnIndexByName("Grid", V.Local.sCol, V.Local.iCol)
+GUI.Form.GsGrid.GetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+
+
+
+Function.Intrinsic.Control.CallSub(set_one_color, "ROW", V.Local.iRow,"COL", V.Local.iCol, "DATE", V.Local.dDate)
+
+Function.Intrinsic.Control.If(V.Local.sCol, =, "Confirmed_Prod_Date")
+'	'find out if this is air or sea
+'	'V.Local.dDate.Set(V.Args.Value)
+'	Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Ship_By", V.Local.iCol)
+'	GUI.Form.GsGrid.GetCellValue("Grid", V.Local.iCol, V.Local.iRow, V.Local.sRet)
+'	Function.Intrinsic.Control.If(V.Local.sRet.RTrim, =, "Sea")
+'		F.Intrinsic.Date.DateAdd("D", 50,V.Local.dDate, V.Local.dDate)
+'	Function.Intrinsic.Control.ElseIf(V.Local.sRet.RTrim, =, "Air")
+'		F.Intrinsic.Date.DateAdd("D", 10,V.Local.dDate, V.Local.dDate)
+'	Function.Intrinsic.Control.EndIf
+'	Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Original_Available", V.Local.iCol)
+'	GUI.Form.GsGrid.SetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+
+	Gui.Form.GsGrid.GetCellValueByColumnName("Grid", "Revised_Prod_Date", V.Local.iRow, V.Local.sRet)
+	F.Intrinsic.Control.If(V.Local.sRet, =, "")
+		V.Local.dDate.Set(V.Args.Value)
+		Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Ship_By", V.Local.iCol)
+		GUI.Form.GsGrid.GetCellValue("Grid", V.Local.iCol, V.Local.iRow, V.Local.sRet)
+		F.Intrinsic.Control.SelectCase(V.Local.sRet.Trim)
+		F.Intrinsic.Control.Case("Ocean East")
+			F.Intrinsic.Date.DateAdd("D", 42,V.Local.dDate, V.Local.dDate)	
+		F.Intrinsic.Control.Case("Ocean West")
+			F.Intrinsic.Date.DateAdd("D", 28,V.Local.dDate, V.Local.dDate)
+		F.Intrinsic.Control.Case("Ocean-East")
+			F.Intrinsic.Date.DateAdd("D", 42,V.Local.dDate, V.Local.dDate)	
+		F.Intrinsic.Control.Case("Ocean-West")
+			F.Intrinsic.Date.DateAdd("D", 28,V.Local.dDate, V.Local.dDate)
+		F.Intrinsic.Control.Case("Air")
+			F.Intrinsic.Date.DateAdd("D", 7,V.Local.dDate, V.Local.dDate)
+		F.Intrinsic.Control.Case("Land")
+			F.Intrinsic.Date.DateAdd("D", 6,V.Local.dDate, V.Local.dDate)
+		F.Intrinsic.Control.EndSelect
+	
+		Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Expected_Recv_Date", V.Local.iCol)
+		GUI.Form.GsGrid.SetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+		
+		F.Intrinsic.Date.DateAdd("D", 1,V.Local.dDate, V.Local.dDate)	
+		Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Expected_Inspect_Dat", V.Local.iCol)
+		GUI.Form.GsGrid.SetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+		
+		F.Intrinsic.Date.DateAdd("D", 1,V.Local.dDate, V.Local.dDate)
+		Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Expected_Avail_Date", V.Local.iCol)
+		GUI.Form.GsGrid.SetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)	
+	F.Intrinsic.Control.EndIf
+	
+Function.Intrinsic.Control.ElseIf(V.Local.sCol, =, "Revised_Prod_Date")
+	'find out if this is air or sea
+	V.Local.dDate.Set(V.Args.Value)
+	Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Ship_By", V.Local.iCol)
+	GUI.Form.GsGrid.GetCellValue("Grid", V.Local.iCol, V.Local.iRow, V.Local.sRet)
+	F.Intrinsic.Control.SelectCase(V.Local.sRet.Trim)
+	F.Intrinsic.Control.Case("Ocean East")
+		F.Intrinsic.Date.DateAdd("D", 42,V.Local.dDate, V.Local.dDate)	
+	F.Intrinsic.Control.Case("Ocean West")
+		F.Intrinsic.Date.DateAdd("D", 28,V.Local.dDate, V.Local.dDate)
+	F.Intrinsic.Control.Case("Ocean-East")
+		F.Intrinsic.Date.DateAdd("D", 42,V.Local.dDate, V.Local.dDate)	
+	F.Intrinsic.Control.Case("Ocean-West")
+		F.Intrinsic.Date.DateAdd("D", 28,V.Local.dDate, V.Local.dDate)
+	F.Intrinsic.Control.Case("Air")
+		F.Intrinsic.Date.DateAdd("D", 7,V.Local.dDate, V.Local.dDate)
+	F.Intrinsic.Control.Case("Land")
+		F.Intrinsic.Date.DateAdd("D", 6,V.Local.dDate, V.Local.dDate)
+	F.Intrinsic.Control.EndSelect
+
+'	Function.Intrinsic.Control.If(V.Local.sRet.RTrim, =, "Sea")
+'	Function.Intrinsic.Control.ElseIf(V.Local.sRet.RTrim, =, "Air")
+'		F.Intrinsic.Date.DateAdd("D", 10,V.Local.dDate, V.Local.dDate)
+'	Function.Intrinsic.Control.EndIf
+'	Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Revised_Available", V.Local.iCol)
+'	GUI.Form.GsGrid.SetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+	
+
+	Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Expected_Recv_Date", V.Local.iCol)
+	GUI.Form.GsGrid.SetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+	
+	F.Intrinsic.Date.DateAdd("D", 1,V.Local.dDate, V.Local.dDate)	
+	Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Expected_Inspect_Dat", V.Local.iCol)
+	GUI.Form.GsGrid.SetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+	
+	F.Intrinsic.Date.DateAdd("D", 1,V.Local.dDate, V.Local.dDate)
+	Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Expected_Avail_Date", V.Local.iCol)
+	GUI.Form.GsGrid.SetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)	
+	
+Function.Intrinsic.Control.ElseIf(V.Local.sCol, =, "ETA_at_Port")	
+	V.Local.dDate.Set(V.Args.Value)
+	F.Intrinsic.Date.DateAdd("D", 7,V.Local.dDate, V.Local.dDate)
+	Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Expected_Recv_Date", V.Local.iCol)
+	GUI.Form.GsGrid.SetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+	
+	F.Intrinsic.Date.DateAdd("D", 1,V.Local.dDate, V.Local.dDate)
+	Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Expected_Inspect_Dat", V.Local.iCol)
+	GUI.Form.GsGrid.SetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+	
+	F.Intrinsic.Date.DateAdd("D", 1,V.Local.dDate, V.Local.dDate)
+	Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Expected_Avail_Date", V.Local.iCol)
+	GUI.Form.GsGrid.SetCellValue("Grid", V.Local.iCol, V.Local.iRow,V.Local.dDate)
+Function.Intrinsic.Control.Else
+
+Function.Intrinsic.Control.EndIf
+
+Gui.Form.GsGrid.ResumeLayout()
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("GsGrid_CellValueChanged_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4392_Import_Orders.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.GsGrid_CellValueChanged.End
+
+Program.Sub.Set_Color.Start
+F.Intrinsic.Control.SetErrorHandler("Set_Color_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local..BulkDeclareString(sColor, sRet, sNeed)
+V.Local..BulkDeclareLong(iRow, iCol, iC, iOutside)
+V.Local.dDate.Declare(Date)
+V.Local.dPast.Declare(Date)
+
+'accounts for a blank date
+F.Intrinsic.Date.DateAdd("YYYY", -100,V.Ambient.Date, V.Local.dPast)
+
+'set color: on manually entered dates, green, or red if date is prior to today
+'loop through rows for each column
+
+'create string for dates entered manually
+V.Local.sColor.Set("Ack_Date,Pre_Prod_Date_Sent,Pre_Prod_Date_Approv,Request_Prod_Date,Confirmed_Prod_Date,Revised_Prod_Date,Request_QC_Date,Actual_QC_Date,Actual_Prod_Date,Actual_Ship_Date,ETA_at_Port,Actual_Recv_Date,Actual_Inspect_Date,Actual_Avail_Date")
+
+F.Intrinsic.String.Split(V.Local.sColor, ",", V.Local.sColor)
+F.Intrinsic.Control.For(V.Local.iOutside, 0, V.Local.sColor.UBound, 1)
+	'get column index
+	Gui.Form.GsGrid.GetColumnIndexByName("Grid", V.Local.sColor(V.Local.iOutside), V.Local.iCol)
+	Function.Intrinsic.Control.For(V.Local.iC, 0, V.DataTable.NET.RowCount--, 1)
+		GUI.Form.GsGrid.GetCellValue("Grid", V.Local.iCol, V.Local.iC, V.Local.dDate)
+		Function.Intrinsic.Control.If(V.Local.dDate, >=, V.Ambient.Date)
+			Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iC, "backcolor", "YellowGreen")
+		Function.Intrinsic.Control.ElseIf(V.Local.dDate, <, V.Local.dPast)	
+		'Function.Intrinsic.Control.ElseIf(V.Local.dDate, <, V.Ambient.Date)
+		Function.Intrinsic.Control.Else
+			Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iC, "backcolor", "Tomato")
+		Function.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.iC)
+F.Intrinsic.Control.Next(V.Local.iOutside)
+
+
+'check to be sure Pre_Prod_Date_Need is not N
+Function.Intrinsic.Control.For(V.Local.iC, 0, V.DataTable.NET.RowCount--, 1)
+	Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Pre_Prod_Needed", V.Local.iCol)
+	GUI.Form.GsGrid.GetCellValue("Grid", V.Local.iCol, V.Local.iC,V.Local.sNeed)
+	Function.Intrinsic.Control.If(V.Local.sNeed, =, "N")
+		Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Pre_Prod_Date_Sent", V.Local.iCol)
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iC, "backcolor", "White")
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iC, "foreColor", "White")
+		Gui.Form.GsGrid.GetColumnIndexByName("Grid", "Pre_Prod_Date_Approv", V.Local.iCol)
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iC, "backcolor", "White")
+		Gui.Form.GsGrid.SetCellAppearance("Grid", V.Local.iCol, V.Local.iC, "foreColor", "White")
+	Function.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.iC)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Set_Color_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4392_Import_Orders.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Set_Color.End
+
+Program.Sub.Set_One_Color.Start
+F.Intrinsic.Control.SetErrorHandler("Set_One_Color_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local.dPast.Declare(Date)
+'accounts for a blank date
+F.Intrinsic.Date.DateAdd("YYYY", -100,V.Ambient.Date, V.Local.dPast)
+Function.Intrinsic.Control.If(V.Args.DATE, >=, V.Ambient.Date)
+			Gui.Form.GsGrid.SetCellAppearance("Grid", V.Args.COL, V.ARGS.ROW, "backcolor", "YellowGreen")
+Function.Intrinsic.Control.ElseIf(V.Args.DATE, <, V.Local.dPast)	
+		'Function.Intrinsic.Control.ElseIf(V.Local.dDate, <, V.Ambient.Date)
+Function.Intrinsic.Control.Else
+			Gui.Form.GsGrid.SetCellAppearance("Grid", V.Args.COL, V.ARGS.ROW, "backcolor", "Tomato")
+Function.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Set_One_Color_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4392_Import_Orders.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Set_One_Color.End
+
+Program.Sub.timer_Timer.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+'F.Data.DataTable.RemoveColumn("NET", "Original_Cust_D")
+
+'set focus elsewhere
+F.Data.DataTable.SaveToDB("NET", "con", "GCG_4392_ImportOrder", "PO_Num*!*PO_Line",256)
+F.Data.DataTable.Close("NET")
+'Gui.Form..Visible(False)
+'refresh data
+Function.Intrinsic.Control.CallSub(search_database)
+Function.Intrinsic.Control.CallSub(create_table)
+F.Intrinsic.Math.Mult(V.Global.iRate, 1000, V.Global.iRate)
+'GUI.Form..Show
+GUI.Form.GsGrid.MainView("Grid")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4392_Import_Orders.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.timer_Timer.End
+
+Program.Sub.cmdRefresh_Click.Start
+F.Intrinsic.Control.SetErrorHandler("timer_Timer_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+Gui.Form.GsGrid.SuspendLayout()
+Gui.Form..Visible(False)
+
+'F.Data.DataTable.RemoveColumn("NET", "Original_Cust_D")
+
+'F.Intrinsic.Control.Try
+F.Data.DataTable.SaveToDB("NET", "con", "GCG_4392_ImportOrder", "PO_Num*!*PO_Line",256)
+'F.Intrinsic.Control.Catch
+'F.Intrinsic.Control.EndTry
+
+F.Data.DataTable.Close("NET")
+
+Function.Intrinsic.Control.CallSub(search_database)
+Function.Intrinsic.Control.CallSub(create_table)
+
+Gui.Form.GsGrid.ResumeLayout()
+Gui.Form..Visible(True)
+'GUI.Form.GsGrid.MainView("Grid")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("timer_Timer_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4392_Import_Orders.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.cmdRefresh_Click.End
+
+Program.Sub.cmdExport_Click.Start
+F.Intrinsic.Control.SetErrorHandler("cmdRefresh_Click_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.bFlag.Declare(Boolean)
+V.Local.sFileDir.Declare(String)
+V.Local.sDate.Declare(String)
+Gui.Form.GsGrid.SuspendLayout()
+
+F.Intrinsic.String.Split(V.Ambient.Now, " ", V.Local.sDate)
+F.Intrinsic.String.Replace(V.Local.sDate, "/", "-", V.Local.sDate)
+F.Intrinsic.String.Replace(V.Local.sDate(1), ":", "", V.Local.sDate(1))
+
+'We want to export to an excel file
+F.Automation.MSExcel.CheckPresence(V.Local.bFlag)
+
+F.Intrinsic.Control.If(V.Local.bFlag, =, True)
+	F.Intrinsic.String.Build("{0}\Import_Orders{1}-{2}.xlsx", V.Caller.LocalGSSTempDir, V.Local.sDate(0), V.Local.sDate(1), V.Local.sFileDir)
+	Gui.Form.GsGrid.Export(V.Local.sFileDir, "xlsx")
+	F.Intrinsic.Task.ShellExec(0, "", V.Local.sFileDir, "", "", 1)	
+F.Intrinsic.Control.Else
+	F.Intrinsic.String.Build("{0}\Import_Orders{1}-{2}.csv", V.Caller.LocalGSSTempDir, V.Local.sDate(0), V.Local.sDate(1), V.Local.sFileDir)
+	Gui.Form.GsGrid.Export(V.Local.sFileDir, "csv")
+	F.Intrinsic.Task.ShellExec(0, "", V.Local.sFileDir, "", "", 1)		
+F.Intrinsic.Control.EndIf
+Gui.Form.GsGrid.ResumeLayout()
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("cmdRefresh_Click_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4392_Import_Orders.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.cmdExport_Click.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$DH1$}$2/8/2017 12:56:14 PM$}$False
+${$3$}$0$}$$}$-1$}$-1$}$$}$1/1/1900$}$Upload Material sequences to WO from Spreadsheet
+Program.Sub.Comments.End
